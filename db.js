@@ -2,22 +2,26 @@
 // Thin IndexedDB wrapper for the lecture app.
 //
 // Stores, in one database ("lecture-app"):
-//   - sessions:  { id, courseName, createdAt, pdfName, pdfPageCount, currentSlide,
+//   - sessions:  { id, courseName, createdAt, docs: [{docIndex,name,pageCount}],
+//                  currentDocIndex, currentSlide,
 //                  status: "active" | "ended", endedAt, recordingActive }
-//   - events:    { id (auto), sessionId, type: "slide" | "mark", slide, tier, t, tz }
-//   - pdfFiles:  { sessionId, blob }               (the slide PDF, one per session)
+//   - events:    { id (auto), sessionId, type: "slide" | "mark" | "doc",
+//                  doc, slide, tier, t }
+//   - pdfFiles:  { id (auto), sessionId, docIndex, name, pageCount, blob }
+//                (one row per document added to the lecture; a lecture can
+//                have several, when the lecturer moves on to a new file)
 //   - audioChunks: { id (auto), sessionId, seq, blob, t }   (recorded audio, in order)
 //
 // Every write is small and immediate, so an accidental close loses at most
 // the event or chunk that was mid-flight, never anything already saved.
 
 const DB_NAME = "lecture-app";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 function openDb() {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = () => {
+    req.onupgradeneeded = (event) => {
       const db = req.result;
       if (!db.objectStoreNames.contains("sessions")) {
         db.createObjectStore("sessions", { keyPath: "id" });
@@ -26,8 +30,16 @@ function openDb() {
         const store = db.createObjectStore("events", { keyPath: "id", autoIncrement: true });
         store.createIndex("sessionId", "sessionId", { unique: false });
       }
+      // v1 stored one PDF per session, keyed by sessionId. v2 stores one row
+      // per document, since a lecture can now have more than one file.
+      // There is no real user data to migrate at this point in development,
+      // so the old store is simply replaced.
+      if (db.objectStoreNames.contains("pdfFiles") && event.oldVersion < 2) {
+        db.deleteObjectStore("pdfFiles");
+      }
       if (!db.objectStoreNames.contains("pdfFiles")) {
-        db.createObjectStore("pdfFiles", { keyPath: "sessionId" });
+        const store = db.createObjectStore("pdfFiles", { keyPath: "id", autoIncrement: true });
+        store.createIndex("sessionId", "sessionId", { unique: false });
       }
       if (!db.objectStoreNames.contains("audioChunks")) {
         const store = db.createObjectStore("audioChunks", { keyPath: "id", autoIncrement: true });
@@ -107,15 +119,19 @@ export const LectureDb = {
     return events;
   },
 
-  // --- pdf storage ---
-  async putPdf(sessionId, blob, name, pageCount) {
+  // --- pdf storage (one row per document in the lecture) ---
+  async addPdfDoc(sessionId, docIndex, blob, name, pageCount) {
     const { stores } = await tx(["pdfFiles"], "readwrite");
-    return reqToPromise(stores[0].put({ sessionId, blob, name, pageCount }));
+    return reqToPromise(stores[0].add({ sessionId, docIndex, blob, name, pageCount }));
   },
 
-  async getPdf(sessionId) {
+  // Returns all documents for a session, in the order they were added.
+  async getPdfDocs(sessionId) {
     const { stores } = await tx(["pdfFiles"], "readonly");
-    return reqToPromise(stores[0].get(sessionId));
+    const idx = stores[0].index("sessionId");
+    const docs = await reqToPromise(idx.getAll(IDBKeyRange.only(sessionId)));
+    docs.sort((a, b) => a.docIndex - b.docIndex);
+    return docs;
   },
 
   // --- audio chunks ---

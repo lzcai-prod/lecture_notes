@@ -32,10 +32,14 @@
 </main>
 
 <main id="viewer-screen" class="screen hidden">
+  <div id="doc-switcher" class="doc-switcher hidden"></div>
+
   <div class="canvas-wrap">
     <canvas id="pdf-canvas"></canvas>
     <button id="prev-btn" class="nav-btn nav-left" aria-label="Previous slide">&#8249;</button>
     <button id="next-btn" class="nav-btn nav-right" aria-label="Next slide">&#8250;</button>
+    <button id="add-file-btn" class="add-file-btn" aria-label="Add another file" title="Add another file">+</button>
+    <input id="add-file-picker" type="file" accept="application/pdf" hidden />
   </div>
 
   <div id="slide-label" class="slide-label">Slide 1 / 1</div>
