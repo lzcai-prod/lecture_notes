@@ -1,0 +1,10 @@
+{
+  "name": "Lecture Marker",
+  "short_name": "Lecture",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#111318",
+  "theme_color": "#111318",
+  "orientation": "any",
+  "icons": []
+}

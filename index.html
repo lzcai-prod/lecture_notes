@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<title>Lecture Marker</title>
+<link rel="manifest" href="./manifest.json" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="theme-color" content="#111318" />
+<link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+
+<main id="picker-screen" class="screen">
+  <div id="resume-banner" class="banner hidden">
+    <p id="resume-info"></p>
+    <div class="banner-actions">
+      <button id="resume-btn" class="primary">Resume session</button>
+      <button id="discard-btn" class="ghost">Discard</button>
+    </div>
+  </div>
+
+  <div class="picker-card">
+    <h1>Lecture Marker</h1>
+    <p class="hint">Choose the slide PDF for this lecture (Files, including iCloud Drive).</p>
+    <label class="file-btn">
+      Choose PDF
+      <input id="file-picker" type="file" accept="application/pdf" hidden />
+    </label>
+  </div>
+</main>
+
+<main id="viewer-screen" class="screen hidden">
+  <div class="canvas-wrap">
+    <canvas id="pdf-canvas"></canvas>
+    <button id="prev-btn" class="nav-btn nav-left" aria-label="Previous slide">&#8249;</button>
+    <button id="next-btn" class="nav-btn nav-right" aria-label="Next slide">&#8250;</button>
+  </div>
+
+  <div id="slide-label" class="slide-label">Slide 1 / 1</div>
+
+  <div id="tier-row" class="tier-row"></div>
+
+  <div class="control-row">
+    <button id="rec-btn" class="primary wide">Start recording</button>
+    <span id="rec-dot" class="rec-dot"></span>
+    <button id="end-btn" class="danger">End lecture</button>
+  </div>
+
+  <div id="status-line" class="status-line">Not recording</div>
+</main>
+
+<script type="module" src="./app.js"></script>
+</body>
+</html>
