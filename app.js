@@ -10,7 +10,18 @@
 // and a slide number.
 
 import { LectureDb, requestPersistentStorage } from "./db.js";
-import { getSyncConfig, setSyncConfig, checkHealth, syncMeta, syncComplete, flushSession, startAutoSync, onSyncStatus, getSyncStatus } from "./sync.js";
+import {
+  getSyncConfig,
+  setSyncConfig,
+  checkHealth,
+  checkAudioStatus,
+  syncMeta,
+  syncComplete,
+  flushSession,
+  startAutoSync,
+  onSyncStatus,
+  getSyncStatus,
+} from "./sync.js";
 import * as pdfjsLib from "./vendor/pdfjs/pdf.min.mjs";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = "./vendor/pdfjs/pdf.worker.min.mjs";
@@ -51,6 +62,11 @@ const el = {
   endBtn: document.getElementById("end-btn"),
   discardSessionBtn: document.getElementById("discard-session-btn"),
   statusLine: document.getElementById("status-line"),
+
+  endedScreen: document.getElementById("ended-screen"),
+  audioStatusBox: document.getElementById("audio-status-box"),
+  audioStatusText: document.getElementById("audio-status-text"),
+  newLectureBtn: document.getElementById("new-lecture-btn"),
   syncStatus: document.getElementById("sync-status"),
 
   settingsBtn: document.getElementById("settings-btn"),
@@ -319,15 +335,85 @@ async function endLecture() {
   await flushSession(state.sessionId);
   await syncComplete(state.sessionId, { endedAt: rec.endedAt });
 
-  // The Dell already has everything once sync succeeds (and more: audio and
-  // the PDFs too), so the local download is only useful as a fallback when
-  // sync isn't configured or didn't fully go through this time.
-  if (getSyncStatus() === "idle") {
-    flashStatus("Lecture ended and synced to the Dell.");
-  } else {
+  // The Dell already has slides/marks once sync succeeds, but the local
+  // download is still a useful fallback for those specifically when sync
+  // isn't configured or didn't fully go through this time. The audio itself
+  // never goes through this download either way -- see the ended screen.
+  if (getSyncStatus() !== "idle") {
     await exportMarksFile(rec);
-    flashStatus("Lecture ended. Could not confirm sync, so the marks file was also saved here as a backup.");
   }
+
+  showEndedScreen(state.sessionId);
+}
+
+let audioStatusPollTimer = null;
+
+function showEndedScreen(sessionId) {
+  el.viewer.classList.add("hidden");
+  el.endedScreen.classList.remove("hidden");
+  startAudioStatusPolling(sessionId);
+}
+
+function setAudioStatusUi(kind, text) {
+  el.audioStatusText.textContent = text;
+  el.audioStatusBox.className = "audio-status-box audio-status-" + kind;
+}
+
+function startAudioStatusPolling(sessionId) {
+  stopAudioStatusPolling();
+
+  if (!getSyncConfig()) {
+    setAudioStatusUi("waiting", "Sync isn't set up on this device, so there's nothing to check automatically.");
+    return;
+  }
+
+  const poll = async () => {
+    const status = await checkAudioStatus(sessionId);
+    if (status === null) {
+      setAudioStatusUi("unreachable", "Can't reach the Dell right now (check Tailscale). Still watching...");
+      return;
+    }
+    if (!status.hasAudio) {
+      setAudioStatusUi("waiting", "Waiting for the recording to arrive. Send it via Tailscale if you haven't yet.");
+      return;
+    }
+
+    const check = status.durationCheck;
+    if (!check || check.mismatch === null || check.mismatch === undefined) {
+      setAudioStatusUi("ok", "Recording received. (Length couldn't be automatically verified.)");
+    } else if (check.mismatch) {
+      const expected = (check.expected_seconds / 60).toFixed(1);
+      const actual = (check.actual_seconds / 60).toFixed(1);
+      setAudioStatusUi(
+        "mismatch",
+        `Recording received (${actual} min), but that doesn't match the expected ~${expected} min. Double check you sent the right file.`
+      );
+    } else {
+      const actual = (check.actual_seconds / 60).toFixed(1);
+      setAudioStatusUi("ok", `Recording received (${actual} min) and its length matches. All set.`);
+    }
+    stopAudioStatusPolling(); // resolved either way; no need to keep polling
+  };
+
+  poll();
+  audioStatusPollTimer = setInterval(poll, 8000);
+}
+
+function stopAudioStatusPolling() {
+  clearInterval(audioStatusPollTimer);
+  audioStatusPollTimer = null;
+}
+
+function startNewLecture() {
+  stopAudioStatusPolling();
+  state.sessionId = null;
+  state.docs = [];
+  state.currentDocIndex = 0;
+  state.currentSlide = 1;
+  state.audioSeq = 0;
+  el.endedScreen.classList.add("hidden");
+  el.picker.classList.remove("hidden");
+  updateDemoBanner();
 }
 
 // Permanently deletes the current session (recording, slide log, marks,
@@ -563,6 +649,8 @@ function wireControls() {
       quitWithoutSaving();
     }
   });
+
+  el.newLectureBtn.addEventListener("click", () => startNewLecture());
 
   el.settingsBtn.addEventListener("click", () => {
     const config = getSyncConfig();

@@ -72,6 +72,26 @@ export async function checkHealth() {
   }
 }
 
+// Polls whether the Taildropped audio for this session has arrived on the
+// Dell yet, and if so, whether its duration matched what was expected.
+// Returns null if sync isn't configured or the receiver isn't reachable
+// (distinct from {hasAudio: false, ...}, which means "reachable, no audio
+// yet" -- the caller should keep polling on either null or hasAudio:false).
+export async function checkAudioStatus(sessionId) {
+  const config = getSyncConfig();
+  if (!config) return null;
+  try {
+    const res = await fetch(`${config.url}/session/${sessionId}/audio-status`, {
+      method: "GET",
+      headers: { "X-Lecture-Token": config.token },
+    });
+    if (!res.ok) return null;
+    return res.json();
+  } catch (e) {
+    return null;
+  }
+}
+
 export async function syncMeta(sessionRecord) {
   if (!getSyncConfig()) return false;
   try {

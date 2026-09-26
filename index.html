@@ -81,11 +81,15 @@
   <div id="tier-row" class="tier-row"></div>
 
   <div class="recording-recommend">
-    <p class="hint">
-      <strong>Record in Voice Memos</strong> (works with the screen off or the phone in your pocket).
-      Tap below the instant you start it, then switch over and hit record. When the lecture ends:
-      Share &rarr; Send via Tailscale &rarr; this Dell. Slides and marks sync automatically.
-    </p>
+    <details class="voice-memo-info">
+      <summary>&#9432; How to record</summary>
+      <p class="hint">
+        <strong>Record in Voice Memos</strong> (works with the screen off or the phone in your pocket).
+        Tap the button below the instant you start it, then switch over and hit record. When the
+        lecture ends: Share &rarr; Send via Tailscale &rarr; this Dell. Slides and marks sync
+        automatically.
+      </p>
+    </details>
     <button id="mark-start-btn" class="primary wide">Mark recording start</button>
     <p id="mark-start-result" class="hint mark-start-result"></p>
   </div>
@@ -105,6 +109,20 @@
   <div id="status-line" class="status-line">Not recording</div>
   <div id="sync-status" class="sync-status sync-unconfigured">Sync: not set up</div>
   <button id="discard-session-btn" class="discard-link">Quit without saving</button>
+</main>
+
+<main id="ended-screen" class="screen hidden">
+  <div class="picker-card">
+    <h1>Lecture ended</h1>
+    <p class="hint">
+      Now: open <strong>Voice Memos</strong> &rarr; Share &rarr; <strong>Send via Tailscale</strong> &rarr;
+      this Dell, if you haven't already.
+    </p>
+    <div id="audio-status-box" class="audio-status-box audio-status-waiting">
+      <p id="audio-status-text">Checking for the recording...</p>
+    </div>
+    <button id="new-lecture-btn" class="primary wide">Start a new lecture</button>
+  </div>
 </main>
 
 <script type="module" src="./app.js"></script>
