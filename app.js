@@ -44,6 +44,8 @@ const el = {
   prevBtn: document.getElementById("prev-btn"),
   nextBtn: document.getElementById("next-btn"),
   tierRow: document.getElementById("tier-row"),
+  markStartBtn: document.getElementById("mark-start-btn"),
+  markStartResult: document.getElementById("mark-start-result"),
   recBtn: document.getElementById("rec-btn"),
   recDot: document.getElementById("rec-dot"),
   endBtn: document.getElementById("end-btn"),
@@ -169,6 +171,24 @@ async function mark(tier) {
   });
   flushSession(state.sessionId);
   flashStatus(`Marked slide ${state.currentSlide}: ${TIERS[tier - 1].label}`);
+}
+
+// Logs a precise anchor timestamp for "this is the instant Voice Memos was
+// started" -- Phase 3 alignment uses this (plus the audio file's own known
+// duration) to estimate where the recording actually sits on the same
+// clock as the slide/mark events, instead of guessing purely from content.
+// Safe to tap again (e.g. if the first attempt was a false start): each tap
+// logs a new anchor, and the display always shows the latest one.
+async function markRecordingStart() {
+  const t = nowIso();
+  await LectureDb.addEvent({ sessionId: state.sessionId, type: "audio_anchor", t });
+  flushSession(state.sessionId);
+  showLastAudioAnchor(t);
+}
+
+function showLastAudioAnchor(isoTime) {
+  const label = new Date(isoTime).toLocaleTimeString();
+  el.markStartResult.textContent = `Marked at ${label}. Tap again to redo if that was a false start.`;
 }
 
 function flashStatus(msg) {
@@ -312,11 +332,14 @@ async function exportMarksFile(sessionRecord) {
   const marksOnly = events
     .filter((e) => e.type === "mark")
     .map((e) => ({ doc: e.doc, slide: e.slide, tier: e.tier, t: e.t }));
+  const audioAnchors = events.filter((e) => e.type === "audio_anchor");
+  const audioAnchor = audioAnchors.length ? audioAnchors[audioAnchors.length - 1].t : null;
 
   const payload = {
     version: 3,
     lecture_start: sessionRecord.createdAt ? new Date(sessionRecord.createdAt).toISOString() : nowIso(),
     lecture_end: sessionRecord.endedAt || nowIso(),
+    audio_anchor: audioAnchor, // precise moment Voice Memos was started, if marked; null otherwise
     docs: (sessionRecord.docs || []).map((d) => ({
       index: d.docIndex,
       name: d.name,
@@ -409,6 +432,11 @@ async function resumeSession(sessionRecord) {
   renderDocSwitcher();
   await renderPage(state.currentSlide);
   flushSession(state.sessionId); // catch up on anything left unsynced from before the close
+
+  const events = await LectureDb.getEvents(state.sessionId);
+  const anchors = events.filter((e) => e.type === "audio_anchor");
+  if (anchors.length) showLastAudioAnchor(anchors[anchors.length - 1].t);
+
   flashStatus("Resumed previous session. Recording is paused; press Start to continue.");
 }
 
@@ -476,6 +504,8 @@ function wireControls() {
     }
     touchStartX = null;
   });
+
+  el.markStartBtn.addEventListener("click", () => markRecordingStart());
 
   el.recBtn.addEventListener("click", () => {
     if (state.recording) stopRecording();

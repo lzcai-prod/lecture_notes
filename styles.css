@@ -217,7 +217,12 @@ html, body {
   padding: 0 10px 10px;
   text-align: center;
 }
-.recording-recommend .hint { margin: 0; }
+.recording-recommend .hint { margin: 0 0 10px; }
+.mark-start-result {
+  margin: 8px 0 0 !important;
+  color: var(--tier1);
+  min-height: 14px;
+}
 
 .fallback-rec {
   margin: 0 10px 10px;
