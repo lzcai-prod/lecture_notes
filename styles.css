@@ -34,7 +34,8 @@ html, body {
 }
 
 /* --- picker screen --- */
-#picker-screen {
+#picker-screen,
+#ended-screen {
   align-items: center;
   justify-content: center;
   gap: 24px;
