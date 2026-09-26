@@ -213,6 +213,32 @@ html, body {
   padding: 0 10px 10px;
 }
 
+.recording-recommend {
+  padding: 0 10px 10px;
+  text-align: center;
+}
+.recording-recommend .hint { margin: 0 0 10px; }
+.attach-btn {
+  display: block;
+  background: var(--tier1);
+  color: white;
+}
+
+.fallback-rec {
+  margin: 0 10px 10px;
+  border: 1px solid #2a2d36;
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+.fallback-rec summary {
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+.fallback-rec .control-row {
+  padding: 10px 0 0;
+}
+
 .wide { flex: 1; }
 
 .rec-dot {

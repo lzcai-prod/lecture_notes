@@ -80,10 +80,27 @@
 
   <div id="tier-row" class="tier-row"></div>
 
+  <div class="recording-recommend">
+    <p class="hint">
+      Recommended: record in the <strong>Voice Memos</strong> app (works with the screen off or the
+      phone in your pocket), then attach the file here when the lecture ends.
+    </p>
+    <label class="file-btn attach-btn">
+      Attach Voice Memo
+      <input id="attach-audio-picker" type="file" accept="audio/*" hidden />
+    </label>
+  </div>
+
+  <details class="fallback-rec">
+    <summary>Or record in this browser instead (screen must stay on)</summary>
+    <div class="control-row">
+      <button id="rec-btn" class="primary wide">Start recording</button>
+      <span id="rec-dot" class="rec-dot"></span>
+    </div>
+  </details>
+
   <div class="control-row">
-    <button id="rec-btn" class="primary wide">Start recording</button>
-    <span id="rec-dot" class="rec-dot"></span>
-    <button id="end-btn" class="danger">End lecture</button>
+    <button id="end-btn" class="danger wide">End lecture</button>
   </div>
 
   <div id="status-line" class="status-line">Not recording</div>
