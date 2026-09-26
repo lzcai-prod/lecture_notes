@@ -68,7 +68,7 @@ html, body {
 .ghost { background: transparent; color: var(--muted); border: 1px solid #333; }
 .danger { background: var(--danger); color: white; }
 
-.banner {
+.banner, .demo-banner {
   background: var(--card);
   border: 1px solid var(--accent);
   border-radius: 12px;
@@ -76,6 +76,28 @@ html, body {
   max-width: 420px;
   width: 100%;
   margin-bottom: 8px;
+}
+
+.demo-banner {
+  border-color: #3a3f4d;
+}
+.demo-banner p {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.4;
+}
+.demo-banner strong { color: var(--accent); }
+.demo-fork-link {
+  flex: 1;
+  text-align: center;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 14px;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid #333;
+  color: var(--text);
 }
 .banner p { margin: 0 0 12px; font-size: 14px; color: var(--muted); }
 .banner-actions { display: flex; gap: 10px; }

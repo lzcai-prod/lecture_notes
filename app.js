@@ -28,6 +28,8 @@ const CHUNK_MS = 5000; // audio chunk length; each chunk is saved as it arrives
 const el = {
   picker: document.getElementById("picker-screen"),
   filePicker: document.getElementById("file-picker"),
+  demoBanner: document.getElementById("demo-banner"),
+  demoDismissBtn: document.getElementById("demo-dismiss-btn"),
   resumeBanner: document.getElementById("resume-banner"),
   resumeInfo: document.getElementById("resume-info"),
   resumeBtn: document.getElementById("resume-btn"),
@@ -501,6 +503,7 @@ function wireControls() {
   el.settingsSave.addEventListener("click", () => {
     setSyncConfig(el.settingsUrl.value, el.settingsToken.value);
     el.settingsResult.textContent = "Saved.";
+    updateDemoBanner();
     if (state.sessionId) flushSession(state.sessionId);
   });
 
@@ -523,12 +526,31 @@ function updateSyncStatusUi(status) {
   el.syncStatus.className = "sync-status sync-" + status;
 }
 
+const DEMO_DISMISSED_KEY = "demoBannerDismissed";
+
+// No sync configured on this device means there's no owner-specific setup
+// here at all -- either a real first run before the owner configures sync,
+// or (far more likely for a link shared publicly) a visitor who isn't the
+// owner. Either way the honest thing to show is "this is a demo," rather
+// than silently behaving like a real app and only failing later.
+function updateDemoBanner() {
+  const isDemo = !getSyncConfig();
+  const dismissed = localStorage.getItem(DEMO_DISMISSED_KEY) === "1";
+  el.demoBanner.classList.toggle("hidden", !isDemo || dismissed);
+}
+
 async function init() {
   await requestPersistentStorage();
   buildTierButtons();
   wireControls();
   onSyncStatus(updateSyncStatusUi);
   startAutoSync(() => state.sessionId);
+
+  updateDemoBanner();
+  el.demoDismissBtn.addEventListener("click", () => {
+    localStorage.setItem(DEMO_DISMISSED_KEY, "1");
+    updateDemoBanner();
+  });
 
   const active = await LectureDb.getActiveSession();
   if (active) {
