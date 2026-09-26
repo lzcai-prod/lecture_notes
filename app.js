@@ -10,6 +10,7 @@
 // and a slide number.
 
 import { LectureDb, requestPersistentStorage } from "./db.js";
+import { getSyncConfig, setSyncConfig, checkHealth, syncMeta, syncComplete, flushSession, startAutoSync, onSyncStatus } from "./sync.js";
 import * as pdfjsLib from "./vendor/pdfjs/pdf.min.mjs";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = "./vendor/pdfjs/pdf.worker.min.mjs";
@@ -46,6 +47,16 @@ const el = {
   endBtn: document.getElementById("end-btn"),
   discardSessionBtn: document.getElementById("discard-session-btn"),
   statusLine: document.getElementById("status-line"),
+  syncStatus: document.getElementById("sync-status"),
+
+  settingsBtn: document.getElementById("settings-btn"),
+  settingsPanel: document.getElementById("settings-panel"),
+  settingsUrl: document.getElementById("settings-url"),
+  settingsToken: document.getElementById("settings-token"),
+  settingsSave: document.getElementById("settings-save"),
+  settingsTest: document.getElementById("settings-test"),
+  settingsClose: document.getElementById("settings-close"),
+  settingsResult: document.getElementById("settings-result"),
 };
 
 let state = {
@@ -110,6 +121,7 @@ async function goToSlide(num, { log = true } = {}) {
       slide: num,
       t: nowIso(),
     });
+    flushSession(state.sessionId);
   }
 }
 
@@ -128,6 +140,7 @@ async function switchDoc(docIndex) {
     slide: target,
     t: nowIso(),
   });
+  flushSession(state.sessionId);
   renderDocSwitcher();
 }
 
@@ -152,6 +165,7 @@ async function mark(tier) {
     tier,
     t: nowIso(),
   });
+  flushSession(state.sessionId);
   flashStatus(`Marked slide ${state.currentSlide}: ${TIERS[tier - 1].label}`);
 }
 
@@ -204,6 +218,7 @@ async function startRecording() {
     if (e.data && e.data.size > 0) {
       const seq = state.audioSeq++;
       await LectureDb.addAudioChunk(state.sessionId, seq, e.data, nowIso());
+      flushSession(state.sessionId);
     }
   };
   state.mediaRecorder.start(CHUNK_MS);
@@ -212,6 +227,7 @@ async function startRecording() {
   const rec = await currentSessionRecord();
   rec.recordingActive = true;
   await LectureDb.putSession(rec);
+  syncMeta(rec);
   updateRecordingUi();
 }
 
@@ -225,6 +241,8 @@ async function stopRecording() {
   const rec = await currentSessionRecord();
   rec.recordingActive = false;
   await LectureDb.putSession(rec);
+  syncMeta(rec);
+  flushSession(state.sessionId);
   updateRecordingUi();
 }
 
@@ -240,6 +258,9 @@ async function endLecture() {
   rec.status = "ended";
   rec.endedAt = nowIso();
   await LectureDb.putSession(rec);
+  await syncMeta(rec);
+  await flushSession(state.sessionId);
+  await syncComplete(state.sessionId, { endedAt: rec.endedAt });
   await exportMarksFile(rec);
   flashStatus("Lecture ended. Marks file saved.");
 }
@@ -334,7 +355,8 @@ async function loadPdfFile(file, { additional = false } = {}) {
   await LectureDb.addPdfDoc(state.sessionId, docIndex, file, file.name, doc.numPages);
   state.docs.push({ docIndex, name: file.name, pageCount: doc.numPages, pdfDoc: doc, lastSlide: 1 });
 
-  await LectureDb.putSession(await currentSessionRecord());
+  const rec = await currentSessionRecord();
+  await LectureDb.putSession(rec);
   await LectureDb.addEvent({ sessionId: state.sessionId, type: "slide", doc: docIndex, slide: 1, t: nowIso() });
 
   state.currentDocIndex = docIndex;
@@ -343,6 +365,9 @@ async function loadPdfFile(file, { additional = false } = {}) {
   showViewer();
   renderDocSwitcher();
   await renderPage(1);
+
+  syncMeta(rec);
+  flushSession(state.sessionId);
 
   if (additional) flashStatus(`Added ${file.name}. Recording continues uninterrupted.`);
 }
@@ -373,6 +398,7 @@ async function resumeSession(sessionRecord) {
   showViewer();
   renderDocSwitcher();
   await renderPage(state.currentSlide);
+  flushSession(state.sessionId); // catch up on anything left unsynced from before the close
   flashStatus("Resumed previous session. Recording is paused; press Start to continue.");
 }
 
@@ -461,12 +487,48 @@ function wireControls() {
       quitWithoutSaving();
     }
   });
+
+  el.settingsBtn.addEventListener("click", () => {
+    const config = getSyncConfig();
+    el.settingsUrl.value = config?.url || "";
+    el.settingsToken.value = config?.token || "";
+    el.settingsResult.textContent = "";
+    el.settingsPanel.classList.remove("hidden");
+  });
+
+  el.settingsClose.addEventListener("click", () => el.settingsPanel.classList.add("hidden"));
+
+  el.settingsSave.addEventListener("click", () => {
+    setSyncConfig(el.settingsUrl.value, el.settingsToken.value);
+    el.settingsResult.textContent = "Saved.";
+    if (state.sessionId) flushSession(state.sessionId);
+  });
+
+  el.settingsTest.addEventListener("click", async () => {
+    setSyncConfig(el.settingsUrl.value, el.settingsToken.value);
+    el.settingsResult.textContent = "Checking...";
+    const ok = await checkHealth();
+    el.settingsResult.textContent = ok ? "Reachable." : "Could not reach the receiver. Check Tailscale and the URL.";
+  });
+}
+
+function updateSyncStatusUi(status) {
+  const labels = {
+    unconfigured: "Sync: not set up",
+    idle: "Synced",
+    syncing: "Syncing...",
+    offline: "Sync: offline, queued",
+  };
+  el.syncStatus.textContent = labels[status] || status;
+  el.syncStatus.className = "sync-status sync-" + status;
 }
 
 async function init() {
   await requestPersistentStorage();
   buildTierButtons();
   wireControls();
+  onSyncStatus(updateSyncStatusUi);
+  startAutoSync(() => state.sessionId);
 
   const active = await LectureDb.getActiveSession();
   if (active) {

@@ -12,6 +12,28 @@
 </head>
 <body>
 
+<button id="settings-btn" class="settings-btn" aria-label="Sync settings" title="Sync settings">&#9881;</button>
+
+<div id="settings-panel" class="settings-panel hidden">
+  <div class="settings-card">
+    <h2>Sync to your Dell</h2>
+    <p class="hint">
+      Paste the receiver address (e.g. https://your-dell.your-tailnet.ts.net/lecture) and the shared
+      token. Both stay only on this device.
+    </p>
+    <label class="field-label">Receiver URL</label>
+    <input id="settings-url" type="url" placeholder="https://...ts.net/lecture" autocapitalize="none" autocorrect="off" />
+    <label class="field-label">Token</label>
+    <input id="settings-token" type="text" placeholder="shared token" autocapitalize="none" autocorrect="off" />
+    <p id="settings-result" class="hint"></p>
+    <div class="banner-actions">
+      <button id="settings-test" class="ghost">Test</button>
+      <button id="settings-save" class="primary">Save</button>
+    </div>
+    <button id="settings-close" class="discard-link">Close</button>
+  </div>
+</div>
+
 <main id="picker-screen" class="screen">
   <div id="resume-banner" class="banner hidden">
     <p id="resume-info"></p>
@@ -28,6 +50,7 @@
       Choose PDF
       <input id="file-picker" type="file" accept="application/pdf" hidden />
     </label>
+    <p class="fineprint">Personal tool. Recordings and slides stay on this device unless you set up sync to your own server.</p>
   </div>
 </main>
 
@@ -53,6 +76,7 @@
   </div>
 
   <div id="status-line" class="status-line">Not recording</div>
+  <div id="sync-status" class="sync-status sync-unconfigured">Sync: not set up</div>
   <button id="discard-session-btn" class="discard-link">Quit without saving</button>
 </main>
 

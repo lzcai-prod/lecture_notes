@@ -12,6 +12,7 @@ const SHELL_FILES = [
   "./styles.css",
   "./app.js",
   "./db.js",
+  "./sync.js",
   "./manifest.json",
   "./vendor/pdfjs/pdf.min.mjs",
   "./vendor/pdfjs/pdf.worker.min.mjs",

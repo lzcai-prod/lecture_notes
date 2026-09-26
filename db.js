@@ -106,9 +106,12 @@ export const LectureDb = {
   },
 
   // --- events (slide changes + marks) ---
+  // Every row starts with synced:false; the sync module flips it to true
+  // once the Dell receiver has confirmed it, and a background retry loop
+  // re-sends anything still false.
   async addEvent(event) {
     const { stores } = await tx(["events"], "readwrite");
-    return reqToPromise(stores[0].add(event));
+    return reqToPromise(stores[0].add({ ...event, synced: false }));
   },
 
   async getEvents(sessionId) {
@@ -119,10 +122,24 @@ export const LectureDb = {
     return events;
   },
 
+  async getUnsyncedEvents(sessionId) {
+    const events = await this.getEvents(sessionId);
+    return events.filter((e) => !e.synced);
+  },
+
+  async markEventSynced(id) {
+    const { stores } = await tx(["events"], "readwrite");
+    const row = await reqToPromise(stores[0].get(id));
+    if (row) {
+      row.synced = true;
+      await reqToPromise(stores[0].put(row));
+    }
+  },
+
   // --- pdf storage (one row per document in the lecture) ---
   async addPdfDoc(sessionId, docIndex, blob, name, pageCount) {
     const { stores } = await tx(["pdfFiles"], "readwrite");
-    return reqToPromise(stores[0].add({ sessionId, docIndex, blob, name, pageCount }));
+    return reqToPromise(stores[0].add({ sessionId, docIndex, blob, name, pageCount, synced: false }));
   },
 
   // Returns all documents for a session, in the order they were added.
@@ -134,10 +151,24 @@ export const LectureDb = {
     return docs;
   },
 
+  async getUnsyncedPdfDocs(sessionId) {
+    const docs = await this.getPdfDocs(sessionId);
+    return docs.filter((d) => !d.synced);
+  },
+
+  async markPdfSynced(id) {
+    const { stores } = await tx(["pdfFiles"], "readwrite");
+    const row = await reqToPromise(stores[0].get(id));
+    if (row) {
+      row.synced = true;
+      await reqToPromise(stores[0].put(row));
+    }
+  },
+
   // --- audio chunks ---
   async addAudioChunk(sessionId, seq, blob, t) {
     const { stores } = await tx(["audioChunks"], "readwrite");
-    return reqToPromise(stores[0].add({ sessionId, seq, blob, t }));
+    return reqToPromise(stores[0].add({ sessionId, seq, blob, t, synced: false }));
   },
 
   async getAudioChunks(sessionId) {
@@ -146,6 +177,20 @@ export const LectureDb = {
     const chunks = await reqToPromise(idx.getAll(IDBKeyRange.only(sessionId)));
     chunks.sort((a, b) => a.seq - b.seq);
     return chunks;
+  },
+
+  async getUnsyncedAudioChunks(sessionId) {
+    const chunks = await this.getAudioChunks(sessionId);
+    return chunks.filter((c) => !c.synced);
+  },
+
+  async markAudioChunkSynced(id) {
+    const { stores } = await tx(["audioChunks"], "readwrite");
+    const row = await reqToPromise(stores[0].get(id));
+    if (row) {
+      row.synced = true;
+      await reqToPromise(stores[0].put(row));
+    }
   },
 
   async countAudioChunks(sessionId) {
