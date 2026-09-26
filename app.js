@@ -10,7 +10,7 @@
 // and a slide number.
 
 import { LectureDb, requestPersistentStorage } from "./db.js";
-import { getSyncConfig, setSyncConfig, checkHealth, syncMeta, syncComplete, flushSession, startAutoSync, onSyncStatus } from "./sync.js";
+import { getSyncConfig, setSyncConfig, checkHealth, syncMeta, syncComplete, flushSession, startAutoSync, onSyncStatus, getSyncStatus } from "./sync.js";
 import * as pdfjsLib from "./vendor/pdfjs/pdf.min.mjs";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = "./vendor/pdfjs/pdf.worker.min.mjs";
@@ -263,8 +263,16 @@ async function endLecture() {
   await syncMeta(rec);
   await flushSession(state.sessionId);
   await syncComplete(state.sessionId, { endedAt: rec.endedAt });
-  await exportMarksFile(rec);
-  flashStatus("Lecture ended. Marks file saved.");
+
+  // The Dell already has everything once sync succeeds (and more: audio and
+  // the PDFs too), so the local download is only useful as a fallback when
+  // sync isn't configured or didn't fully go through this time.
+  if (getSyncStatus() === "idle") {
+    flashStatus("Lecture ended and synced to the Dell.");
+  } else {
+    await exportMarksFile(rec);
+    flashStatus("Lecture ended. Could not confirm sync, so the marks file was also saved here as a backup.");
+  }
 }
 
 // Permanently deletes the current session (recording, slide log, marks,
