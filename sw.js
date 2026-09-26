@@ -1,9 +1,11 @@
 // sw.js
 // Caches the app shell so it opens with no internet connection in the
-// lecture hall. Bump CACHE_NAME whenever any listed file changes so old
-// clients pick up the new version instead of a stale cache.
+// lecture hall, but prefers a fresh copy whenever the network is reachable
+// (network-first, falling back to cache when offline). This means a new
+// deploy is picked up automatically the next time the app opens with
+// connectivity, with no manual cache-name bump required.
 
-const CACHE_NAME = "lecture-app-v1";
+const CACHE_NAME = "lecture-app-v2";
 const SHELL_FILES = [
   "./",
   "./index.html",
@@ -30,10 +32,19 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// Cache-first for the app shell; anything else falls through to the network.
+// Network-first for the app shell: try the network, cache what comes back,
+// and only fall back to the cache when there is no connectivity. This keeps
+// the app usable offline while no longer requiring a cache-name bump for
+// every update to reach an already-installed PWA.
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   event.respondWith(
-    caches.match(event.request).then((cached) => cached || fetch(event.request))
+    fetch(event.request)
+      .then((response) => {
+        const copy = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        return response;
+      })
+      .catch(() => caches.match(event.request))
   );
 });
