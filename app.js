@@ -76,14 +76,30 @@ let state = {
 
 function nowIso() {
   // ISO 8601 with local timezone offset preserved (not "Z"), so the Dell can
-  // reconstruct exact local wall-clock time regardless of where it runs.
+  // reconstruct the exact absolute instant regardless of where it runs.
+  //
+  // IMPORTANT: must use the *local* getters (getFullYear/getHours/...) for
+  // the date/time digits, paired with the local offset suffix. d.toISOString()
+  // returns UTC digits -- pairing those with a local offset suffix (an
+  // earlier bug here) silently produces a timestamp off by the local UTC
+  // offset (4-5 hours for US Eastern), since it double-counts the offset.
   const d = new Date();
   const tzMin = -d.getTimezoneOffset();
   const sign = tzMin >= 0 ? "+" : "-";
-  const abs = Math.abs(tzMin);
-  const hh = String(Math.floor(abs / 60)).padStart(2, "0");
-  const mm = String(abs % 60).padStart(2, "0");
-  return d.toISOString().replace("Z", "") + `${sign}${hh}:${mm}`;
+  const absMin = Math.abs(tzMin);
+  const tzHh = String(Math.floor(absMin / 60)).padStart(2, "0");
+  const tzMm = String(absMin % 60).padStart(2, "0");
+
+  const pad = (n) => String(n).padStart(2, "0");
+  const year = d.getFullYear();
+  const month = pad(d.getMonth() + 1);
+  const day = pad(d.getDate());
+  const hh = pad(d.getHours());
+  const mm = pad(d.getMinutes());
+  const ss = pad(d.getSeconds());
+  const ms = String(d.getMilliseconds()).padStart(3, "0");
+
+  return `${year}-${month}-${day}T${hh}:${mm}:${ss}.${ms}${sign}${tzHh}:${tzMm}`;
 }
 
 function newSessionId() {
@@ -180,15 +196,33 @@ async function mark(tier) {
 // Safe to tap again (e.g. if the first attempt was a false start): each tap
 // logs a new anchor, and the display always shows the latest one.
 async function markRecordingStart() {
-  const t = nowIso();
-  await LectureDb.addEvent({ sessionId: state.sessionId, type: "audio_anchor", t });
-  flushSession(state.sessionId);
-  showLastAudioAnchor(t);
+  try {
+    const t = nowIso();
+    await LectureDb.addEvent({ sessionId: state.sessionId, type: "audio_anchor", t });
+    flushSession(state.sessionId);
+    showLastAudioAnchor(t);
+  } catch (e) {
+    // A silent failure here is worse than a loud one: this is the one
+    // timestamp the whole alignment step depends on.
+    alert("Could not mark the recording start: " + e.message + "\nTry again, or reload the app.");
+  }
 }
 
+let anchorTimerInterval = null;
+
 function showLastAudioAnchor(isoTime) {
+  const anchorMs = new Date(isoTime).getTime();
   const label = new Date(isoTime).toLocaleTimeString();
-  el.markStartResult.textContent = `Marked at ${label}. Tap again to redo if that was a false start.`;
+
+  clearInterval(anchorTimerInterval);
+  const tick = () => {
+    const elapsedSec = Math.max(0, Math.floor((Date.now() - anchorMs) / 1000));
+    const mm = String(Math.floor(elapsedSec / 60)).padStart(2, "0");
+    const ss = String(elapsedSec % 60).padStart(2, "0");
+    el.markStartResult.textContent = `Marked at ${label} — elapsed ${mm}:${ss}. Tap the button again to redo.`;
+  };
+  tick();
+  anchorTimerInterval = setInterval(tick, 1000);
 }
 
 function flashStatus(msg) {
@@ -275,6 +309,7 @@ function updateRecordingUi() {
 }
 
 async function endLecture() {
+  clearInterval(anchorTimerInterval);
   if (state.recording) await stopRecording();
   const rec = await currentSessionRecord();
   rec.status = "ended";
@@ -298,6 +333,7 @@ async function endLecture() {
 // Permanently deletes the current session (recording, slide log, marks,
 // stored PDFs) and returns to the picker screen. No marks file is exported.
 async function quitWithoutSaving() {
+  clearInterval(anchorTimerInterval);
   if (state.recording) {
     if (state.mediaRecorder && state.mediaRecorder.state !== "inactive") {
       state.mediaRecorder.stream.getTracks().forEach((t) => t.stop());
