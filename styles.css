@@ -175,6 +175,14 @@ html, body {
   border-color: var(--accent);
 }
 
+.no-slides-note { text-align: center; padding: 10px; margin: 0; }
+
+#viewer-screen.viewer-no-slides .canvas-wrap,
+#viewer-screen.viewer-no-slides #slide-label,
+#viewer-screen.viewer-no-slides #tier-row {
+  display: none;
+}
+
 .slide-label {
   text-align: center;
   padding: 8px 0;

@@ -61,12 +61,14 @@
       Choose PDF
       <input id="file-picker" type="file" accept="application/pdf" hidden />
     </label>
+    <button id="no-slides-btn" class="discard-link">No slides for this lecture</button>
     <p class="fineprint">Personal tool. Recordings and slides stay on this device unless you set up sync to your own server.</p>
   </div>
 </main>
 
 <main id="viewer-screen" class="screen hidden">
   <div id="doc-switcher" class="doc-switcher hidden"></div>
+  <p id="no-slides-note" class="hint no-slides-note hidden">No slides for this lecture &mdash; audio only.</p>
 
   <div class="canvas-wrap">
     <canvas id="pdf-canvas"></canvas>

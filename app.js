@@ -39,6 +39,8 @@ const CHUNK_MS = 5000; // audio chunk length; each chunk is saved as it arrives
 const el = {
   picker: document.getElementById("picker-screen"),
   filePicker: document.getElementById("file-picker"),
+  noSlidesBtn: document.getElementById("no-slides-btn"),
+  noSlidesNote: document.getElementById("no-slides-note"),
   demoBanner: document.getElementById("demo-banner"),
   demoDismissBtn: document.getElementById("demo-dismiss-btn"),
   resumeBanner: document.getElementById("resume-banner"),
@@ -529,7 +531,8 @@ async function loadPdfFile(file, { additional = false } = {}) {
 
 async function resumeSession(sessionRecord) {
   const pdfRows = await LectureDb.getPdfDocs(sessionRecord.id);
-  if (!pdfRows.length) {
+  const expectingDocs = (sessionRecord.docs || []).length > 0;
+  if (expectingDocs && !pdfRows.length) {
     flashStatus("Could not find the stored PDF(s) for this session.");
     return;
   }
@@ -550,9 +553,9 @@ async function resumeSession(sessionRecord) {
   // Continue the audio sequence numbering rather than restarting at 0.
   state.audioSeq = await LectureDb.countAudioChunks(sessionRecord.id);
 
-  showViewer();
+  showViewer({ noSlides: state.docs.length === 0 });
   renderDocSwitcher();
-  await renderPage(state.currentSlide);
+  if (state.docs.length) await renderPage(state.currentSlide);
   flushSession(state.sessionId); // catch up on anything left unsynced from before the close
 
   const events = await LectureDb.getEvents(state.sessionId);
@@ -562,9 +565,38 @@ async function resumeSession(sessionRecord) {
   flashStatus("Resumed previous session. Recording is paused; press Start to continue.");
 }
 
-function showViewer() {
+// Starts a session with no slide PDF at all, for a lecture where the
+// professor didn't provide one. Everything else (recording, sync, the
+// ended-screen check) works exactly the same; slide-specific UI (the
+// viewer canvas, tier marks, doc switcher) is just hidden.
+async function startAudioOnlySession() {
+  const sessionId = newSessionId();
+  state.sessionId = sessionId;
+  state.docs = [];
+  state.currentDocIndex = 0;
+  state.currentSlide = 1;
+
+  const sessionRecord = {
+    id: sessionId,
+    courseName: null,
+    createdAt: Date.now(),
+    currentDocIndex: 0,
+    currentSlide: 1,
+    status: "active",
+    recordingActive: false,
+    docs: [],
+  };
+  await LectureDb.putSession(sessionRecord);
+  syncMeta(sessionRecord);
+
+  showViewer({ noSlides: true });
+}
+
+function showViewer({ noSlides = false } = {}) {
   el.picker.classList.add("hidden");
   el.viewer.classList.remove("hidden");
+  el.viewer.classList.toggle("viewer-no-slides", noSlides);
+  el.noSlidesNote?.classList.toggle("hidden", !noSlides);
 }
 
 function renderDocSwitcher() {
@@ -601,6 +633,8 @@ function wireControls() {
     if (file) loadPdfFile(file, { additional: false });
     e.target.value = "";
   });
+
+  el.noSlidesBtn.addEventListener("click", () => startAudioOnlySession());
 
   el.addFileBtn.addEventListener("click", () => el.addFilePicker.click());
   el.addFilePicker.addEventListener("change", (e) => {
@@ -733,11 +767,13 @@ async function init() {
 
   const active = await LectureDb.getActiveSession();
   if (active) {
-    const docNames = (active.docs || []).map((d) => d.name).join(", ") || "Untitled";
+    const hasDocs = (active.docs || []).length > 0;
+    const docNames = hasDocs ? (active.docs || []).map((d) => d.name).join(", ") : "Audio only (no slides)";
+    const slideInfo = hasDocs
+      ? ` — slide ${active.currentSlide}/${(active.docs || [])[active.currentDocIndex]?.pageCount ?? "?"}`
+      : "";
     el.resumeBanner.classList.remove("hidden");
-    el.resumeInfo.textContent = `${docNames} — slide ${active.currentSlide}/${
-      (active.docs || [])[active.currentDocIndex]?.pageCount ?? "?"
-    }, started ${new Date(active.createdAt).toLocaleString()}`;
+    el.resumeInfo.textContent = `${docNames}${slideInfo}, started ${new Date(active.createdAt).toLocaleString()}`;
     el.resumeBtn.addEventListener("click", () => resumeSession(active));
     el.discardBtn.addEventListener("click", async () => {
       if (
