@@ -526,6 +526,22 @@ function updateSyncStatusUi(status) {
   el.syncStatus.className = "sync-status sync-" + status;
 }
 
+// One-time auto-configure from a link's query params, e.g.
+//   ?sync_url=https%3A%2F%2Fyour-dell...ts.net%2Flecture&sync_token=...
+// so setup on a new device is "open this one link" instead of typing into
+// the settings panel. The params are stripped from the address bar right
+// away so the token doesn't linger in Safari's URL/history after the first
+// load; from then on it's read from localStorage like any saved setting.
+function applyUrlConfigIfPresent() {
+  const params = new URLSearchParams(window.location.search);
+  const url = params.get("sync_url");
+  const token = params.get("sync_token");
+  if (url && token) {
+    setSyncConfig(url, token);
+    window.history.replaceState({}, "", window.location.pathname);
+  }
+}
+
 const DEMO_DISMISSED_KEY = "demoBannerDismissed";
 
 // No sync configured on this device means there's no owner-specific setup
@@ -541,6 +557,7 @@ function updateDemoBanner() {
 
 async function init() {
   await requestPersistentStorage();
+  applyUrlConfigIfPresent();
   buildTierButtons();
   wireControls();
   onSyncStatus(updateSyncStatusUi);
