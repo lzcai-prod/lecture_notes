@@ -217,12 +217,7 @@ html, body {
   padding: 0 10px 10px;
   text-align: center;
 }
-.recording-recommend .hint { margin: 0 0 10px; }
-.attach-btn {
-  display: block;
-  background: var(--tier1);
-  color: white;
-}
+.recording-recommend .hint { margin: 0; }
 
 .fallback-rec {
   margin: 0 10px 10px;

@@ -46,7 +46,6 @@ const el = {
   tierRow: document.getElementById("tier-row"),
   recBtn: document.getElementById("rec-btn"),
   recDot: document.getElementById("rec-dot"),
-  attachAudioPicker: document.getElementById("attach-audio-picker"),
   endBtn: document.getElementById("end-btn"),
   discardSessionBtn: document.getElementById("discard-session-btn"),
   statusLine: document.getElementById("status-line"),
@@ -247,18 +246,6 @@ async function stopRecording() {
   syncMeta(rec);
   flushSession(state.sessionId);
   updateRecordingUi();
-}
-
-// Attaches an audio file recorded externally (Voice Memos) as one whole
-// chunk, reusing the same storage/sync path as the browser's own chunked
-// recording -- it just arrives as a single, larger chunk instead of many
-// 5-second ones. Safe to call more than once (e.g. attaching Part 1 and
-// Part 2 of a lecture if Voice Memos was stopped and restarted).
-async function attachAudioFile(file) {
-  const seq = state.audioSeq++;
-  await LectureDb.addAudioChunk(state.sessionId, seq, file, nowIso());
-  flushSession(state.sessionId);
-  flashStatus(`Attached ${file.name} (${(file.size / 1e6).toFixed(1)} MB).`);
 }
 
 function updateRecordingUi() {
@@ -493,12 +480,6 @@ function wireControls() {
   el.recBtn.addEventListener("click", () => {
     if (state.recording) stopRecording();
     else startRecording();
-  });
-
-  el.attachAudioPicker.addEventListener("change", (e) => {
-    const file = e.target.files[0];
-    if (file) attachAudioFile(file);
-    e.target.value = "";
   });
 
   el.endBtn.addEventListener("click", () => {
