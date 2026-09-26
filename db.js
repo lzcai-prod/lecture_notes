@@ -152,6 +152,33 @@ export const LectureDb = {
     const chunks = await this.getAudioChunks(sessionId);
     return chunks.length;
   },
+
+  // Permanently removes a session and everything recorded under it (events,
+  // stored PDFs, audio chunks). Used for "quit without saving", so nothing
+  // orphaned is left taking up storage.
+  async deleteSession(sessionId) {
+    const { stores } = await tx(["sessions", "events", "pdfFiles", "audioChunks"], "readwrite");
+    const [sessionsStore, eventsStore, pdfStore, audioStore] = stores;
+
+    await reqToPromise(sessionsStore.delete(sessionId));
+
+    for (const store of [eventsStore, pdfStore, audioStore]) {
+      const idx = store.index("sessionId");
+      await new Promise((resolve, reject) => {
+        const cursorReq = idx.openCursor(IDBKeyRange.only(sessionId));
+        cursorReq.onsuccess = () => {
+          const cursor = cursorReq.result;
+          if (cursor) {
+            cursor.delete();
+            cursor.continue();
+          } else {
+            resolve();
+          }
+        };
+        cursorReq.onerror = () => reject(cursorReq.error);
+      });
+    }
+  },
 };
 
 // Ask iOS to keep this origin's storage around (best effort; iOS may still

@@ -44,6 +44,7 @@ const el = {
   recBtn: document.getElementById("rec-btn"),
   recDot: document.getElementById("rec-dot"),
   endBtn: document.getElementById("end-btn"),
+  discardSessionBtn: document.getElementById("discard-session-btn"),
   statusLine: document.getElementById("status-line"),
 };
 
@@ -243,6 +244,31 @@ async function endLecture() {
   flashStatus("Lecture ended. Marks file saved.");
 }
 
+// Permanently deletes the current session (recording, slide log, marks,
+// stored PDFs) and returns to the picker screen. No marks file is exported.
+async function quitWithoutSaving() {
+  if (state.recording) {
+    if (state.mediaRecorder && state.mediaRecorder.state !== "inactive") {
+      state.mediaRecorder.stream.getTracks().forEach((t) => t.stop());
+      state.mediaRecorder.stop();
+    }
+    state.recording = false;
+    releaseWakeLock();
+  }
+  await LectureDb.deleteSession(state.sessionId);
+
+  state.sessionId = null;
+  state.docs = [];
+  state.currentDocIndex = 0;
+  state.currentSlide = 1;
+  state.mediaRecorder = null;
+  state.audioSeq = 0;
+
+  el.viewer.classList.add("hidden");
+  el.resumeBanner.classList.add("hidden");
+  el.picker.classList.remove("hidden");
+}
+
 // Builds the v3 marks file and triggers a download via the Share sheet /
 // Files save. v3 adds multi-document support: a "docs" manifest, and every
 // view/mark now carries a "doc" index alongside its slide number (slide
@@ -425,6 +451,16 @@ function wireControls() {
       endLecture();
     }
   });
+
+  el.discardSessionBtn.addEventListener("click", () => {
+    if (
+      confirm(
+        "Quit without saving? This permanently deletes the recording, slide log and marks for this session. This cannot be undone."
+      )
+    ) {
+      quitWithoutSaving();
+    }
+  });
 }
 
 async function init() {
@@ -441,10 +477,12 @@ async function init() {
     }, started ${new Date(active.createdAt).toLocaleString()}`;
     el.resumeBtn.addEventListener("click", () => resumeSession(active));
     el.discardBtn.addEventListener("click", async () => {
-      if (confirm("Discard this unfinished session? This cannot be undone.")) {
-        active.status = "ended";
-        active.endedAt = nowIso();
-        await LectureDb.putSession(active);
+      if (
+        confirm(
+          "Discard this unfinished session? This permanently deletes its recording, slide log and marks. This cannot be undone."
+        )
+      ) {
+        await LectureDb.deleteSession(active.id);
         el.resumeBanner.classList.add("hidden");
       }
     });
